@@ -203,7 +203,11 @@ class FileSystemTool(QWidget):
 
         self.setLayout(main_layout)
         self.load_drives()
-        self.update_system_info()
+
+        # Start real-time system info updates
+        self.system_info_timer = QTimer()
+        self.system_info_timer.timeout.connect(self.update_system_info)
+        self.system_info_timer.start(1000)  # Update every 1 second
 
     def load_drives(self):
         self.drive_selector.clear()
@@ -304,6 +308,7 @@ class FileSystemTool(QWidget):
             self.observer.join()
         if self.scanner_thread and self.scanner_thread.isRunning():
             self.scanner_thread.quit()
+        self.system_info_timer.stop()  # Stop the timer
         event.accept()
 
 if __name__ == "__main__":
