@@ -3,8 +3,8 @@ import os
 import psutil
 import shutil
 import win32com.client
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QVBoxLayout, QTextEdit, QFileDialog, QHBoxLayout, QFrame, QGridLayout
-from PyQt5.QtGui import QFont, QPalette, QColor, QIcon
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QVBoxLayout, QTextEdit, QFileDialog, QGridLayout, QHBoxLayout, QComboBox
+from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtCore import Qt
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -14,14 +14,6 @@ class FileEventHandler(FileSystemEventHandler):
     def __init__(self, output_widget):
         super().__init__()
         self.output_widget = output_widget
-
-    def on_created(self, event):
-        if not event.is_directory:
-            self.output_widget.append(f"🆕 File Created: {event.src_path}")
-
-    def on_modified(self, event):
-        if not event.is_directory:
-            self.output_widget.append(f"✏️ File Modified: {event.src_path}")
 
     def on_deleted(self, event):
         if not event.is_directory:
@@ -35,23 +27,23 @@ class FileSystemTool(QWidget):
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle("Smart File System Recovery & Optimization Tool")
+        self.setWindowTitle("Advanced File System Recovery & Optimization Tool")
         self.setGeometry(100, 100, 900, 600)
-        self.setStyleSheet("background-color: #f4f4f4; color: #333;")
+        self.setStyleSheet("background-color: #e6f7ff; color: #333;")
         self.setWindowIcon(QIcon("icon.png"))
 
         layout = QVBoxLayout()
-        title = QLabel("📂 Smart File System Recovery & Optimization Tool")
+        title = QLabel("📂 Advanced File System Recovery & Optimization Tool")
         title.setFont(QFont("Arial", 16, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("color: #0056b3; padding: 10px;")
         layout.addWidget(title)
 
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setStyleSheet("background-color: #0056b3; height: 2px;")
-        layout.addWidget(separator)
-
+        self.drive_selector = QComboBox()
+        self.drive_selector.addItem("Select a Drive")
+        self.drive_selector.currentIndexChanged.connect(self.display_drive_files)
+        layout.addWidget(self.drive_selector)
+        
         button_layout = QGridLayout()
         buttons = {
             "Scan System": self.scan_files,
@@ -75,12 +67,29 @@ class FileSystemTool(QWidget):
                 row += 1
 
         layout.addLayout(button_layout)
-
+        
         self.output_text = QTextEdit(readOnly=True)
         self.output_text.setStyleSheet("background-color: white; color: black; border: 2px solid #0056b3; padding: 10px; border-radius: 5px;")
         layout.addWidget(self.output_text)
 
         self.setLayout(layout)
+        self.load_drives()
+
+    def load_drives(self):
+        self.drive_selector.clear()
+        self.drive_selector.addItem("Select a Drive")
+        for drive in [d.device for d in psutil.disk_partitions()]:
+            self.drive_selector.addItem(drive)
+    
+    def display_drive_files(self):
+        selected_drive = self.drive_selector.currentText()
+        if selected_drive == "Select a Drive":
+            return
+        
+        self.output_text.append(f"📂 Files in {selected_drive}:\n")
+        for root, _, files in os.walk(selected_drive):
+            for file in files:
+                self.output_text.append(f"📄 {os.path.join(root, file)}")
 
     def scan_files(self):
         self.output_text.append("🔍 Scanning file system...\n")
@@ -114,7 +123,6 @@ class FileSystemTool(QWidget):
         self.observer.start()
 
     def recover_deleted_files(self):
-        self.output_text.append("♻️ Recovering deleted files...\n")
         recovery_folder = QFileDialog.getExistingDirectory(self, "Select Recovery Folder")
         if not recovery_folder:
             self.output_text.append("⚠️ Recovery canceled!\n")
