@@ -5,7 +5,7 @@ import shutil
 import win32com.client
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QPushButton, QLabel, QVBoxLayout, QTextEdit, QFileDialog, QGridLayout, QComboBox,
-    QProgressBar, QTabWidget, QSizePolicy, QMessageBox
+    QProgressBar, QTabWidget, QSizePolicy, QMessageBox, QHBoxLayout
 )
 from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal
@@ -13,6 +13,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import time
 from datetime import datetime
+import pyqtgraph as pg  # For line graphs
 
 # Custom Thread for Scanning Files
 class FileScannerThread(QThread):
@@ -193,16 +194,56 @@ class FileSystemTool(QWidget):
         system_info_label.setFont(QFont("Arial", 16, QFont.Bold))
         system_info_layout.addWidget(system_info_label)
 
-        # System Info Display
-        self.system_info_text = QTextEdit(readOnly=True)
-        self.system_info_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        system_info_layout.addWidget(self.system_info_text)
+        # CPU Usage
+        self.cpu_usage_label = QLabel("💻 CPU Usage: 0%")
+        self.cpu_usage_label.setFont(QFont("Arial", 14))
+        system_info_layout.addWidget(self.cpu_usage_label)
+
+        # CPU Usage Graph
+        self.cpu_graph = pg.PlotWidget(title="CPU Usage (%)")
+        self.cpu_graph.setBackground("#3B4252")
+        self.cpu_graph.setYRange(0, 100)
+        self.cpu_graph.showGrid(x=True, y=True)
+        self.cpu_curve = self.cpu_graph.plot(pen=pg.mkPen(color="#5E81AC", width=2))
+        system_info_layout.addWidget(self.cpu_graph)
+
+        # Memory Usage
+        self.memory_usage_label = QLabel("🧠 Memory Usage: 0%")
+        self.memory_usage_label.setFont(QFont("Arial", 14))
+        system_info_layout.addWidget(self.memory_usage_label)
+
+        # Memory Usage Graph
+        self.memory_graph = pg.PlotWidget(title="Memory Usage (%)")
+        self.memory_graph.setBackground("#3B4252")
+        self.memory_graph.setYRange(0, 100)
+        self.memory_graph.showGrid(x=True, y=True)
+        self.memory_curve = self.memory_graph.plot(pen=pg.mkPen(color="#88C0D0", width=2))
+        system_info_layout.addWidget(self.memory_graph)
+
+        # Disk Usage
+        self.disk_usage_label = QLabel("💾 Disk Usage: 0%")
+        self.disk_usage_label.setFont(QFont("Arial", 14))
+        system_info_layout.addWidget(self.disk_usage_label)
+
+        # Disk Usage Graph
+        self.disk_graph = pg.PlotWidget(title="Disk Usage (%)")
+        self.disk_graph.setBackground("#3B4252")
+        self.disk_graph.setYRange(0, 100)
+        self.disk_graph.showGrid(x=True, y=True)
+        self.disk_curve = self.disk_graph.plot(pen=pg.mkPen(color="#BF616A", width=2))
+        system_info_layout.addWidget(self.disk_graph)
 
         system_info_tab.setLayout(system_info_layout)
         self.tabs.addTab(system_info_tab, "System Info")
 
         self.setLayout(main_layout)
         self.load_drives()
+
+        # Initialize data for graphs
+        self.cpu_data = []
+        self.memory_data = []
+        self.disk_data = []
+        self.time_data = []
 
         # Start real-time system info updates
         self.system_info_timer = QTimer()
@@ -296,11 +337,35 @@ class FileSystemTool(QWidget):
         self.output_text.append("🗑️ Log cleared!\n")
 
     def update_system_info(self):
-        self.system_info_text.clear()
-        self.system_info_text.append("🖥️ System Information:\n")
-        self.system_info_text.append(f"💻 CPU Usage: {psutil.cpu_percent()}%\n")
-        self.system_info_text.append(f"🧠 Memory Usage: {psutil.virtual_memory().percent}%\n")
-        self.system_info_text.append(f"💾 Disk Usage: {psutil.disk_usage('/').percent}%\n")
+        # Update CPU Usage
+        cpu_usage = psutil.cpu_percent()
+        self.cpu_usage_label.setText(f"💻 CPU Usage: {cpu_usage}%")
+        self.cpu_data.append(cpu_usage)
+
+        # Update Memory Usage
+        memory_usage = psutil.virtual_memory().percent
+        self.memory_usage_label.setText(f"🧠 Memory Usage: {memory_usage}%")
+        self.memory_data.append(memory_usage)
+
+        # Update Disk Usage
+        disk_usage = psutil.disk_usage('/').percent
+        self.disk_usage_label.setText(f"💾 Disk Usage: {disk_usage}%")
+        self.disk_data.append(disk_usage)
+
+        # Update time data
+        self.time_data.append(len(self.time_data))
+
+        # Update graphs
+        self.cpu_curve.setData(self.time_data, self.cpu_data)
+        self.memory_curve.setData(self.time_data, self.memory_data)
+        self.disk_curve.setData(self.time_data, self.disk_data)
+
+        # Limit data to last 60 seconds
+        if len(self.time_data) > 60:
+            self.cpu_data.pop(0)
+            self.memory_data.pop(0)
+            self.disk_data.pop(0)
+            self.time_data.pop(0)
 
     def closeEvent(self, event):
         if self.observer:
