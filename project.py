@@ -8,6 +8,7 @@ from PyQt5.QtGui import QFont, QPalette, QColor, QIcon
 from PyQt5.QtCore import Qt
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+import time
 
 class FileEventHandler(FileSystemEventHandler):
     def __init__(self, output_widget):
@@ -85,7 +86,22 @@ class FileSystemTool(QWidget):
         self.output_text.append("🔍 Scanning file system...\n")
         for drive in [d.device for d in psutil.disk_partitions()]:
             total, used, free = shutil.disk_usage(drive)
+            old_files = []
+            for root, _, files in os.walk(drive):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    try:
+                        last_access_time = os.path.getatime(file_path)
+                        days_unused = (time.time() - last_access_time) // (24 * 3600)
+                        if days_unused > 180:
+                            size = os.path.getsize(file_path) // (1024**2)
+                            old_files.append((file_path, days_unused, size))
+                    except Exception:
+                        continue
+
             self.output_text.append(f"✅ Drive: {drive} | Total: {total // (1024**3)}GB | Free: {free // (1024**3)}GB\n")
+            for file_path, days, size in old_files:
+                self.output_text.append(f"⚠️ Unused File: {file_path} | Last Accessed: {days} days ago | Size: {size} MB\n")
 
     def monitor_files(self):
         if not self.folder_to_monitor:
