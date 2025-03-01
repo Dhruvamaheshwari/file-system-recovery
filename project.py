@@ -4,15 +4,54 @@ import psutil
 import shutil
 import win32com.client
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QPushButton, QLabel, QVBoxLayout, QTextEdit, QFileDialog, QGridLayout, QHBoxLayout, QComboBox,
-    QProgressBar, QTabWidget, QSizePolicy
+    QApplication, QWidget, QPushButton, QLabel, QVBoxLayout, QTextEdit, QFileDialog, QGridLayout, QComboBox,
+    QProgressBar, QTabWidget, QSizePolicy, QMessageBox
 )
-from PyQt5.QtGui import QFont, QIcon, QColor
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QFont, QIcon
+from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import time
+from datetime import datetime
 
+# Custom Thread for Scanning Files
+class FileScannerThread(QThread):
+    update_progress = pyqtSignal(int)  # Signal to update progress bar
+    scan_result = pyqtSignal(list)  # Signal to send scan results
+
+    def __init__(self, drive_path):
+        super().__init__()
+        self.drive_path = drive_path
+
+    def run(self):
+        old_files = []
+        total_files = 0
+        scanned_files = 0
+
+        # Count total files for progress calculation
+        for root, _, files in os.walk(self.drive_path):
+            total_files += len(files)
+
+        # Scan files
+        for root, _, files in os.walk(self.drive_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                try:
+                    last_access_time = os.path.getatime(file_path)
+                    days_unused = (time.time() - last_access_time) // (24 * 3600)
+                    if days_unused > 180:  # Files not accessed for more than 180 days
+                        size = os.path.getsize(file_path) // (1024 ** 2)  # Size in MB
+                        old_files.append((file_path, days_unused, size))
+                except Exception as e:
+                    print(f"Error accessing {file_path}: {e}")
+
+                scanned_files += 1
+                progress = int((scanned_files / total_files) * 100)
+                self.update_progress.emit(progress)
+
+        self.scan_result.emit(old_files)
+
+# File Event Handler for Monitoring
 class FileEventHandler(FileSystemEventHandler):
     def __init__(self, output_widget):
         super().__init__()
@@ -22,11 +61,13 @@ class FileEventHandler(FileSystemEventHandler):
         if not event.is_directory:
             self.output_widget.append(f"❌ File Deleted: {event.src_path}")
 
+# Main Application Window
 class FileSystemTool(QWidget):
     def __init__(self):
         super().__init__()
         self.folder_to_monitor = None
         self.observer = None
+        self.scanner_thread = None
         self.initUI()
 
     def initUI(self):
@@ -181,20 +222,37 @@ class FileSystemTool(QWidget):
                 self.output_text.append(f"📄 {os.path.join(root, file)}")
 
     def scan_files(self):
+        selected_drive = self.drive_selector.currentText()
+        if selected_drive == "Select a Drive":
+            QMessageBox.warning(self, "Warning", "Please select a drive first!")
+            return
+
         self.output_text.append("🔍 Scanning file system...\n")
         self.progress_bar.setValue(0)
-        QTimer.singleShot(1000, self.update_progress)  # Simulate progress
 
-    def update_progress(self):
-        self.progress_bar.setValue(self.progress_bar.value() + 10)
-        if self.progress_bar.value() < 100:
-            QTimer.singleShot(100, self.update_progress)
+        # Start the scanning thread
+        self.scanner_thread = FileScannerThread(selected_drive)
+        self.scanner_thread.update_progress.connect(self.progress_bar.setValue)
+        self.scanner_thread.scan_result.connect(self.display_scan_results)
+        self.scanner_thread.start()
+
+    def display_scan_results(self, old_files):
+        if old_files:
+            self.output_text.append("⚠️ Unused Files (Not accessed for more than 180 days):\n")
+            for file_path, days_unused, size in old_files:
+                self.output_text.append(
+                    f"📄 File: {file_path}\n"
+                    f"   🕒 Last Accessed: {days_unused} days ago\n"
+                    f"   📦 Size: {size} MB\n"
+                )
         else:
-            self.output_text.append("✅ Scan complete!\n")
+            self.output_text.append("✅ No unused files found.\n")
+
+        self.output_text.append("✅ Scan complete!\n")
 
     def monitor_files(self):
         if not self.folder_to_monitor:
-            self.output_text.append("⚠️ Please select a folder first!\n")
+            QMessageBox.warning(self, "Warning", "Please select a folder first!")
             return
         
         self.output_text.append(f"📂 Monitoring folder: {self.folder_to_monitor}\n")
@@ -244,6 +302,8 @@ class FileSystemTool(QWidget):
         if self.observer:
             self.observer.stop()
             self.observer.join()
+        if self.scanner_thread and self.scanner_thread.isRunning():
+            self.scanner_thread.quit()
         event.accept()
 
 if __name__ == "__main__":
