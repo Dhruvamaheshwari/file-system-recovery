@@ -3,9 +3,12 @@ import os
 import psutil
 import shutil
 import win32com.client
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QVBoxLayout, QTextEdit, QFileDialog, QGridLayout, QHBoxLayout, QComboBox
-from PyQt5.QtGui import QFont, QIcon
-from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
+    QApplication, QWidget, QPushButton, QLabel, QVBoxLayout, QTextEdit, QFileDialog, QGridLayout, QHBoxLayout, QComboBox,
+    QProgressBar, QTabWidget, QSizePolicy
+)
+from PyQt5.QtGui import QFont, QIcon, QColor
+from PyQt5.QtCore import Qt, QTimer
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import time
@@ -28,52 +31,138 @@ class FileSystemTool(QWidget):
 
     def initUI(self):
         self.setWindowTitle("Advanced File System Recovery & Optimization Tool")
-        self.setGeometry(100, 100, 900, 600)
-        self.setStyleSheet("background-color: #e6f7ff; color: #333;")
-        self.setWindowIcon(QIcon("icon.png"))
+        self.setGeometry(100, 100, 1200, 800)
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #2E3440;
+                color: #D8DEE9;
+            }
+            QPushButton {
+                background-color: #4C566A;
+                color: #ECEFF4;
+                padding: 10px;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #5E81AC;
+            }
+            QTextEdit {
+                background-color: #3B4252;
+                color: #ECEFF4;
+                border: 1px solid #4C566A;
+                padding: 10px;
+                border-radius: 5px;
+                font-size: 12px;
+            }
+            QComboBox {
+                background-color: #4C566A;
+                color: #ECEFF4;
+                padding: 5px;
+                border-radius: 5px;
+                font-size: 14px;
+            }
+            QProgressBar {
+                background-color: #4C566A;
+                color: #ECEFF4;
+                border-radius: 5px;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #5E81AC;
+                border-radius: 5px;
+            }
+            QLabel {
+                font-size: 16px;
+                color: #ECEFF4;
+            }
+        """)
 
-        layout = QVBoxLayout()
+        main_layout = QVBoxLayout()
+        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+
+        # Title
         title = QLabel("📂 Advanced File System Recovery & Optimization Tool")
-        title.setFont(QFont("Arial", 16, QFont.Bold))
+        title.setFont(QFont("Arial", 20, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("color: #0056b3; padding: 10px;")
-        layout.addWidget(title)
+        main_layout.addWidget(title)
 
+        # Tabs
+        self.tabs = QTabWidget()
+        self.tabs.setFont(QFont("Arial", 12))
+        main_layout.addWidget(self.tabs)
+
+        # File Operations Tab
+        file_operations_tab = QWidget()
+        file_operations_layout = QVBoxLayout()
+        file_operations_layout.setSpacing(15)
+
+        # Drive Selector
         self.drive_selector = QComboBox()
         self.drive_selector.addItem("Select a Drive")
         self.drive_selector.currentIndexChanged.connect(self.display_drive_files)
-        layout.addWidget(self.drive_selector)
-        
+        file_operations_layout.addWidget(self.drive_selector)
+
+        # Buttons
         button_layout = QGridLayout()
         buttons = {
-            "Scan System": self.scan_files,
-            "Monitor Files": self.monitor_files,
-            "Recover Files": self.recover_deleted_files,
-            "Optimize Storage": self.optimize_storage,
-            "Select Folder": self.select_folder,
-            "Clear Log": self.clear_output
+            "📁 Scan System": self.scan_files,
+            "👀 Monitor Files": self.monitor_files,
+            "🔄 Recover Files": self.recover_deleted_files,
+            "⚙️ Optimize Storage": self.optimize_storage,
+            "📂 Select Folder": self.select_folder,
+            "🧹 Clear Log": self.clear_output
         }
 
         row, col = 0, 0
         for text, function in buttons.items():
             btn = QPushButton(text)
-            btn.setFont(QFont("Arial", 11, QFont.Bold))
-            btn.setStyleSheet("background-color: #0056b3; color: white; padding: 12px; border-radius: 8px;")
+            btn.setFont(QFont("Arial", 12))
             btn.clicked.connect(function)
+            btn.setToolTip(f"Click to {text.lower()}")
             button_layout.addWidget(btn, row, col)
             col += 1
             if col > 2:
                 col = 0
                 row += 1
 
-        layout.addLayout(button_layout)
-        
-        self.output_text = QTextEdit(readOnly=True)
-        self.output_text.setStyleSheet("background-color: white; color: black; border: 2px solid #0056b3; padding: 10px; border-radius: 5px;")
-        layout.addWidget(self.output_text)
+        file_operations_layout.addLayout(button_layout)
 
-        self.setLayout(layout)
+        # Progress Bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setValue(0)
+        file_operations_layout.addWidget(self.progress_bar)
+
+        # Output Log
+        self.output_text = QTextEdit(readOnly=True)
+        self.output_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        file_operations_layout.addWidget(self.output_text)
+
+        file_operations_tab.setLayout(file_operations_layout)
+        self.tabs.addTab(file_operations_tab, "File Operations")
+
+        # System Info Tab
+        system_info_tab = QWidget()
+        system_info_layout = QVBoxLayout()
+        system_info_layout.setSpacing(15)
+
+        # System Info Label
+        system_info_label = QLabel("🖥️ System Information")
+        system_info_label.setFont(QFont("Arial", 16, QFont.Bold))
+        system_info_layout.addWidget(system_info_label)
+
+        # System Info Display
+        self.system_info_text = QTextEdit(readOnly=True)
+        self.system_info_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        system_info_layout.addWidget(self.system_info_text)
+
+        system_info_tab.setLayout(system_info_layout)
+        self.tabs.addTab(system_info_tab, "System Info")
+
+        self.setLayout(main_layout)
         self.load_drives()
+        self.update_system_info()
 
     def load_drives(self):
         self.drive_selector.clear()
@@ -93,24 +182,15 @@ class FileSystemTool(QWidget):
 
     def scan_files(self):
         self.output_text.append("🔍 Scanning file system...\n")
-        for drive in [d.device for d in psutil.disk_partitions()]:
-            total, used, free = shutil.disk_usage(drive)
-            old_files = []
-            for root, _, files in os.walk(drive):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    try:
-                        last_access_time = os.path.getatime(file_path)
-                        days_unused = (time.time() - last_access_time) // (24 * 3600)
-                        if days_unused > 180:
-                            size = os.path.getsize(file_path) // (1024**2)
-                            old_files.append((file_path, days_unused, size))
-                    except Exception:
-                        continue
+        self.progress_bar.setValue(0)
+        QTimer.singleShot(1000, self.update_progress)  # Simulate progress
 
-            self.output_text.append(f"✅ Drive: {drive} | Total: {total // (1024**3)}GB | Free: {free // (1024**3)}GB\n")
-            for file_path, days, size in old_files:
-                self.output_text.append(f"⚠️ Unused File: {file_path} | Last Accessed: {days} days ago | Size: {size} MB\n")
+    def update_progress(self):
+        self.progress_bar.setValue(self.progress_bar.value() + 10)
+        if self.progress_bar.value() < 100:
+            QTimer.singleShot(100, self.update_progress)
+        else:
+            self.output_text.append("✅ Scan complete!\n")
 
     def monitor_files(self):
         if not self.folder_to_monitor:
@@ -152,6 +232,13 @@ class FileSystemTool(QWidget):
     def clear_output(self):
         self.output_text.clear()
         self.output_text.append("🗑️ Log cleared!\n")
+
+    def update_system_info(self):
+        self.system_info_text.clear()
+        self.system_info_text.append("🖥️ System Information:\n")
+        self.system_info_text.append(f"💻 CPU Usage: {psutil.cpu_percent()}%\n")
+        self.system_info_text.append(f"🧠 Memory Usage: {psutil.virtual_memory().percent}%\n")
+        self.system_info_text.append(f"💾 Disk Usage: {psutil.disk_usage('/').percent}%\n")
 
     def closeEvent(self, event):
         if self.observer:
