@@ -31,8 +31,6 @@ class FileSystemTool(QWidget):
         super().__init__()
         self.folder_to_monitor = None
         self.observer = None
-        self.recovery_folder = os.path.join(os.getcwd(), "Recovered_Files")
-        os.makedirs(self.recovery_folder, exist_ok=True)
         self.initUI()
 
     def initUI(self):
@@ -101,15 +99,20 @@ class FileSystemTool(QWidget):
 
     def recover_deleted_files(self):
         self.output_text.append("♻️ Recovering deleted files...\n")
+        recovery_folder = QFileDialog.getExistingDirectory(self, "Select Recovery Folder")
+        if not recovery_folder:
+            self.output_text.append("⚠️ Recovery canceled!\n")
+            return
+        
         shell = win32com.client.Dispatch("Shell.Application")
         recycle_bin = shell.Namespace(10)
         
         for item in recycle_bin.Items():
-            recovered_path = os.path.join(self.recovery_folder, item.Name)
+            recovered_path = os.path.join(recovery_folder, item.Name)
             shutil.move(item.Path, recovered_path)
             self.output_text.append(f"🔄 Recovered: {item.Name} → {recovered_path}\n")
         
-        self.output_text.append(f"✅ Files saved in: {self.recovery_folder}\n")
+        self.output_text.append(f"✅ Files saved in: {recovery_folder}\n")
 
     def optimize_storage(self):
         self.output_text.append("🛠️ Optimizing storage...\n")
