@@ -220,19 +220,6 @@ class FileSystemTool(QWidget):
         self.memory_curve = self.memory_graph.plot(pen=pg.mkPen(color="#88C0D0", width=2))
         system_info_layout.addWidget(self.memory_graph)
 
-        # Disk Usage
-        self.disk_usage_label = QLabel("💾 Disk Usage: 0%")
-        self.disk_usage_label.setFont(QFont("Arial", 14))
-        system_info_layout.addWidget(self.disk_usage_label)
-
-        # Disk Usage Graph
-        self.disk_graph = pg.PlotWidget(title="Disk Usage (%)")
-        self.disk_graph.setBackground("#3B4252")
-        self.disk_graph.setYRange(0, 100)
-        self.disk_graph.showGrid(x=True, y=True)
-        self.disk_curve = self.disk_graph.plot(pen=pg.mkPen(color="#BF616A", width=2))
-        system_info_layout.addWidget(self.disk_graph)
-
         system_info_tab.setLayout(system_info_layout)
         self.tabs.addTab(system_info_tab, "System Info")
 
@@ -242,7 +229,6 @@ class FileSystemTool(QWidget):
         # Initialize data for graphs
         self.cpu_data = []
         self.memory_data = []
-        self.disk_data = []
         self.time_data = []
 
         # Start real-time system info updates
@@ -347,24 +333,17 @@ class FileSystemTool(QWidget):
         self.memory_usage_label.setText(f"🧠 Memory Usage: {memory_usage}%")
         self.memory_data.append(memory_usage)
 
-        # Update Disk Usage
-        disk_usage = psutil.disk_usage('/').percent
-        self.disk_usage_label.setText(f"💾 Disk Usage: {disk_usage}%")
-        self.disk_data.append(disk_usage)
-
         # Update time data
         self.time_data.append(len(self.time_data))
 
         # Update graphs
         self.cpu_curve.setData(self.time_data, self.cpu_data)
         self.memory_curve.setData(self.time_data, self.memory_data)
-        self.disk_curve.setData(self.time_data, self.disk_data)
 
         # Limit data to last 60 seconds
         if len(self.time_data) > 60:
             self.cpu_data.pop(0)
             self.memory_data.pop(0)
-            self.disk_data.pop(0)
             self.time_data.pop(0)
 
     def closeEvent(self, event):
