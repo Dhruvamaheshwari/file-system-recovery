@@ -3,8 +3,8 @@ import os
 import psutil
 import shutil
 import win32com.client
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QVBoxLayout, QTextEdit, QFileDialog, QHBoxLayout, QFrame
-from PyQt5.QtGui import QFont, QPalette, QColor
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLabel, QVBoxLayout, QTextEdit, QFileDialog, QHBoxLayout, QFrame, QGridLayout
+from PyQt5.QtGui import QFont, QPalette, QColor, QIcon
 from PyQt5.QtCore import Qt
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -36,25 +36,26 @@ class FileSystemTool(QWidget):
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle("Advanced File System Recovery & Optimization Tool")
+        self.setWindowTitle("Smart File System Recovery & Optimization Tool")
         self.setGeometry(100, 100, 900, 600)
-        self.setStyleSheet("background-color: #282c34; color: white;")
+        self.setStyleSheet("background-color: #f4f4f4; color: #333;")
+        self.setWindowIcon(QIcon("icon.png"))
 
         layout = QVBoxLayout()
-        title = QLabel("🔍 Advanced File System Recovery & Optimization Tool")
+        title = QLabel("📂 Smart File System Recovery & Optimization Tool")
         title.setFont(QFont("Arial", 16, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("color: #61dafb;")
+        title.setStyleSheet("color: #0056b3; padding: 10px;")
         layout.addWidget(title)
 
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
-        separator.setStyleSheet("background-color: #61dafb; height: 2px;")
+        separator.setStyleSheet("background-color: #0056b3; height: 2px;")
         layout.addWidget(separator)
 
-        button_layout = QHBoxLayout()
+        button_layout = QGridLayout()
         buttons = {
-            "Scan File System": self.scan_files,
+            "Scan System": self.scan_files,
             "Monitor Files": self.monitor_files,
             "Recover Files": self.recover_deleted_files,
             "Optimize Storage": self.optimize_storage,
@@ -62,17 +63,22 @@ class FileSystemTool(QWidget):
             "Clear Log": self.clear_output
         }
 
+        row, col = 0, 0
         for text, function in buttons.items():
             btn = QPushButton(text)
-            btn.setFont(QFont("Arial", 10, QFont.Bold))
-            btn.setStyleSheet("background-color: #61dafb; color: black; padding: 10px; border-radius: 5px;")
+            btn.setFont(QFont("Arial", 11, QFont.Bold))
+            btn.setStyleSheet("background-color: #0056b3; color: white; padding: 12px; border-radius: 8px;")
             btn.clicked.connect(function)
-            button_layout.addWidget(btn)
+            button_layout.addWidget(btn, row, col)
+            col += 1
+            if col > 2:
+                col = 0
+                row += 1
 
         layout.addLayout(button_layout)
 
         self.output_text = QTextEdit(readOnly=True)
-        self.output_text.setStyleSheet("background-color: #1e1e1e; color: #ffffff; border: 1px solid #61dafb; padding: 5px;")
+        self.output_text.setStyleSheet("background-color: white; color: black; border: 2px solid #0056b3; padding: 10px; border-radius: 5px;")
         layout.addWidget(self.output_text)
 
         self.setLayout(layout)
