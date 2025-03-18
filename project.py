@@ -17,7 +17,7 @@ import pyqtgraph as pg  # For line graphs
 
 # Custom Thread for Scanning Files
 class FileScannerThread(QThread):
-    update_progress = pyqtSignal(int)  # Signal to update progress bar
+    update_progress = pyqtSignal(int, int, int)  # Signal to update progress (progress, scanned_files, total_files)
     scan_result = pyqtSignal(list)  # Signal to send scan results
 
     def __init__(self, drive_path):
@@ -38,17 +38,27 @@ class FileScannerThread(QThread):
             for file in files:
                 file_path = os.path.join(root, file)
                 try:
+                    # Get file details
                     last_access_time = os.path.getatime(file_path)
+                    last_modified_time = os.path.getmtime(file_path)
                     days_unused = (time.time() - last_access_time) // (24 * 3600)
-                    if days_unused > 180:  # Files not accessed for more than 180 days
-                        size = os.path.getsize(file_path) // (1024 ** 2)  # Size in MB
-                        old_files.append((file_path, days_unused, size))
+                    size = os.path.getsize(file_path) / (1024 * 1024)  # Size in MB
+
+                    # Add file details to the list
+                    old_files.append({
+                        "path": file_path,
+                        "name": file,
+                        "size_mb": size,
+                        "last_accessed": datetime.fromtimestamp(last_access_time).strftime("%Y-%m-%d %H:%M:%S"),
+                        "last_modified": datetime.fromtimestamp(last_modified_time).strftime("%Y-%m-%d %H:%M:%S"),
+                        "days_unused": days_unused
+                    })
                 except Exception as e:
                     print(f"Error accessing {file_path}: {e}")
 
                 scanned_files += 1
                 progress = int((scanned_files / total_files) * 100)
-                self.update_progress.emit(progress)
+                self.update_progress.emit(progress, scanned_files, total_files)
 
         self.scan_result.emit(old_files)
 
@@ -250,7 +260,12 @@ class FileSystemTool(QWidget):
         self.output_text.append(f"📂 Files in {selected_drive}:\n")
         for root, _, files in os.walk(selected_drive):
             for file in files:
-                self.output_text.append(f"📄 {os.path.join(root, file)}")
+                file_path = os.path.join(root, file)
+                try:
+                    size = os.path.getsize(file_path) / (1024 * 1024)  # Size in MB
+                    self.output_text.append(f"📄 {file_path} - {size:.2f} MB")
+                except Exception as e:
+                    self.output_text.append(f"❌ Error reading {file_path}: {e}")
 
     def scan_files(self):
         selected_drive = self.drive_selector.currentText()
@@ -263,18 +278,26 @@ class FileSystemTool(QWidget):
 
         # Start the scanning thread
         self.scanner_thread = FileScannerThread(selected_drive)
-        self.scanner_thread.update_progress.connect(self.progress_bar.setValue)
+        self.scanner_thread.update_progress.connect(self.update_progress)
         self.scanner_thread.scan_result.connect(self.display_scan_results)
         self.scanner_thread.start()
+
+    def update_progress(self, progress, scanned_files, total_files):
+        self.progress_bar.setValue(progress)
+        self.output_text.append(f"📊 Progress: {scanned_files}/{total_files} files scanned ({progress}%)")
 
     def display_scan_results(self, old_files):
         if old_files:
             self.output_text.append("⚠️ Unused Files (Not accessed for more than 180 days):\n")
-            for file_path, days_unused, size in old_files:
+            for file in old_files:
                 self.output_text.append(
-                    f"📄 File: {file_path}\n"
-                    f"   🕒 Last Accessed: {days_unused} days ago\n"
-                    f"   📦 Size: {size} MB\n"
+                    f"📄 File: {file['name']}\n"
+                    f"   📂 Path: {file['path']}\n"
+                    f"   📦 Size: {file['size_mb']:.2f} MB\n"
+                    f"   🕒 Last Accessed: {file['last_accessed']}\n"
+                    f"   🕒 Last Modified: {file['last_modified']}\n"
+                    f"   🕒 Days Unused: {file['days_unused']}\n"
+                    "----------------------------------------\n"
                 )
         else:
             self.output_text.append("✅ No unused files found.\n")
